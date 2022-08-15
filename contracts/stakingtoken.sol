@@ -1,0 +1,132 @@
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity >=0.7.0 <0.9.0;
+
+// When you deposit $DE to the staking contract there is an annual yield of 20%.
+// This yield is paid out in $DE  (0x8f12dfc7981de79a8a34070a732471f2d335eece).
+// In return you will receive the exact same amount of deposited $DE in $DEG.
+// $DEG can be considered a placeholder token instead of the deposited $DE.
+
+// Example:  Let's say you deposit 100 $DE to the staking contract for a period of 14 days.
+// Directly upon depositing 100 $DE you receive 100 $DEG to your wallet.
+//  Once the 14 days are over and you withdraw your stake, you will:
+
+// 1. Deposit 100 $DEG back to the contract in the same transaction
+// 2. Receive 100 $DE back to your wallet
+// 3. Receive your staking yield in $DE
+
+// The staking yield can be calculated according to this formula:
+
+// 14: Staking duration in days
+// 100: Number of $DE Staked
+
+// 14÷365≈0,0384 → 0,0384×100≡3.84 $D\
+
+import "./Ierc20.sol";
+
+contract stakingToken is IERC20 {
+    address founder;
+
+    uint public override totalSupply;
+
+    mapping(address => uint) balance;
+
+    mapping(address => Details) Alldetails;
+
+    event staked(address indexed staker, uint amount, uint time);
+
+    event transfered(address to, uint NoofTokens);
+
+    event withdrawed(address staker, uint amount);
+
+    struct Details {
+        address Staker;
+        uint256 amount;
+        uint256 time;
+        bool staked;
+    }
+
+    constructor() {
+        founder = msg.sender;
+        totalSupply = 1000000000000000000;
+        balance[founder] = totalSupply;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == founder, "not owner");
+        _;
+    }
+
+    modifier timeOut(address _to) {
+        Details memory details = Alldetails[_to];
+        require(block.timestamp >= details.time, "not yet time");
+        _;
+    }
+
+    function balanceOf(address tokenOwner)
+        external
+        view
+        override
+        returns (uint)
+    {
+        return balance[tokenOwner];
+    }
+
+    function staking(uint256 _time) external payable {
+        require(msg.value != 0, "zer ethers");
+        Details storage details = Alldetails[msg.sender];
+        details.Staker = msg.sender;
+        details.amount += msg.value;
+        details.time = _time + block.timestamp;
+        details.staked = true;
+
+        balance[msg.sender] = balance[msg.sender] + details.amount;
+        balance[founder] = balance[founder] - details.amount;
+
+        emit staked(msg.sender, msg.value, _time);
+    }
+
+    function withdraw() external timeOut(msg.sender) {
+        Details memory details = Alldetails[msg.sender];
+        if (msg.sender != details.Staker) {
+            revert("did not stake");
+        }
+        uint total_yields = calFianalReward(msg.sender);
+        uint bal = balance[msg.sender];
+        balance[founder] = balance[founder] + bal;
+        balance[msg.sender] = balance[msg.sender] - bal;
+
+        (bool sent, ) = payable(msg.sender).call{value: total_yields}("");
+        require(sent, "failed");
+        emit withdrawed(msg.sender, total_yields);
+    }
+
+    function contractBalance() external view returns (uint) {
+        return address(this).balance;
+    }
+
+    function stakerDetails(address staker)
+        external
+        view
+        returns (Details memory)
+    {
+        return Alldetails[staker];
+    }
+
+    function calFianalReward(address staker) public view returns (uint) {
+        Details memory details = Alldetails[staker];
+        uint _amount = details.amount;
+        uint staking_yield = (_amount / 365) * 100;
+
+        uint total = staking_yield + _amount;
+        return total;
+    }
+
+    receive() external payable {}
+}
+
+// /// You are not a staker here
+// error NotStaker();
+
+// if(amount != _nooftokens) {
+//     revert NotStaker();
+// }
