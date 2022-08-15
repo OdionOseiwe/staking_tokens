@@ -41,7 +41,8 @@ contract stakingToken is IERC20 {
     struct Details {
         address Staker;
         uint256 amount;
-        uint256 time;
+        uint256 days_time;
+        uint256 years_time;
         bool staked;
     }
 
@@ -58,7 +59,7 @@ contract stakingToken is IERC20 {
 
     modifier timeOut(address _to) {
         Details memory details = Alldetails[_to];
-        require(block.timestamp >= details.time, "not yet time");
+        require(block.timestamp >= details.days_time, "not yet time");
         _;
     }
 
@@ -72,11 +73,12 @@ contract stakingToken is IERC20 {
     }
 
     function staking(uint256 _time) external payable {
-        require(msg.value != 0, "zer ethers");
+        require(msg.value != 0, "zero ethers");
         Details storage details = Alldetails[msg.sender];
         details.Staker = msg.sender;
         details.amount += msg.value;
-        details.time = _time + block.timestamp;
+        details.days_time = (_time * 1 days) + block.timestamp;
+        details.years_time = (_time * 1 days) + 365 + block.timestamp;
         details.staked = true;
 
         balance[msg.sender] = balance[msg.sender] + details.amount;
@@ -86,14 +88,20 @@ contract stakingToken is IERC20 {
     }
 
     function withdraw() external timeOut(msg.sender) {
-        Details memory details = Alldetails[msg.sender];
+        Details storage details = Alldetails[msg.sender];
         if (msg.sender != details.Staker) {
             revert("did not stake");
         }
-        uint total_yields = calFianalReward(msg.sender);
+        uint total_yields = calFianalReward(
+            details.amount,
+            details.days_time,
+            details.years_time
+        );
         uint bal = balance[msg.sender];
         balance[founder] = balance[founder] + bal;
         balance[msg.sender] = balance[msg.sender] - bal;
+
+        details.amount = 0;
 
         (bool sent, ) = payable(msg.sender).call{value: total_yields}("");
         require(sent, "failed");
@@ -112,10 +120,12 @@ contract stakingToken is IERC20 {
         return Alldetails[staker];
     }
 
-    function calFianalReward(address staker) public view returns (uint) {
-        Details memory details = Alldetails[staker];
-        uint _amount = details.amount;
-        uint staking_yield = (_amount / 365) * 100;
+    function calFianalReward(
+        uint _amount,
+        uint _amount_days,
+        uint _amount_years
+    ) public pure returns (uint) {
+        uint staking_yield = (_amount / _amount_years) * _amount_days;
 
         uint total = staking_yield + _amount;
         return total;

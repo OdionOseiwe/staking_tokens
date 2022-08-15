@@ -10,14 +10,14 @@ async function main() {
     
     const staker = "0x5D63564EeF4657F360343196A7bd86ae18d3a92A";
 
-    // await Stakingtoken.staking(1, { value: amount });
+    await Stakingtoken.staking(1, { value: amount });
     
-    // const bal = await Stakingtoken.contractBalance();
-    // console.log("this is the balance", bal);
+    const bal = await Stakingtoken.contractBalance();
+    console.log("this is the balance", bal);
 
-    // const details = await Stakingtoken.stakerDetails(staker);
+    const details = await Stakingtoken.stakerDetails(staker);
 
-    // console.log("details", details);
+    console.log("details", details);
 
     await Stakingtoken.withdraw();
 }
